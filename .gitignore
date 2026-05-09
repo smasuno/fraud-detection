@@ -4,3 +4,7 @@ data/
 # trained models
 models/
 
+# vertex ai deployment
+fraud_api/artifacts/
+vertex_config.json
+
