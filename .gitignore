@@ -8,3 +8,7 @@ models/
 fraud_api/artifacts/
 vertex_config.json
 
+# test notebooks
+vertex_inference.ipynb
+demo_agent.py
+mcp_server_examples/

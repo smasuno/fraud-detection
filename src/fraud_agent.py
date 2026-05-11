@@ -1,13 +1,12 @@
+import anthropic 
+from google.cloud import aiplatform
 import json
-import anthropic
-import httpx
 
 client = anthropic.Anthropic()  # uses ANTHROPIC_API_KEY env var
 
-# Your FastAPI endpoint
-API_URL = "http://localhost:8080"
-
-# ── Define the tool schema ───────────────────────────────────────────────
+ENDPOINT_ID = "755815288049500160"
+aiplatform.init(project="end-to-end-llm", location="us-west1")
+endpoint = aiplatform.Endpoint(ENDPOINT_ID)
 
 tools = [
     {
@@ -50,8 +49,6 @@ tools = [
     }
 ]
 
-# ── Execute the tool (call your FastAPI endpoint) ────────────────────────
-
 def execute_tool(tool_name: str, tool_input: dict) -> str:
     """Call the fraud detection API and return the result as a JSON string."""
     if tool_name != "check_fraud":
@@ -65,11 +62,38 @@ def execute_tool(tool_name: str, tool_input: dict) -> str:
         "parameters": {"explain": True, "top_k_features": top_k},
     }
 
-    response = httpx.post(f"{API_URL}/predict", json=payload, timeout=30.0)
-    response.raise_for_status()
-    return json.dumps(response.json()["predictions"][0])
+    #response = httpx.post(f"{API_URL}/predict", json=payload, timeout=30.0)
+    response = endpoint.predict(
+        instances=[tool_input],
+        parameters={"explain": True, "top_k_features": 5}
+    )
+    #response.raise_for_status()
+    return json.dumps(response.predictions)
 
-# ── Agentic loop ─────────────────────────────────────────────────────────
+
+user_message = ("Check this transaction for fraud: "
+        "V1=-0.49, V2=-0.56, V3=0.59, V4=-1.66, V5=-0.26, "
+        "V6=0.63, V7=0.27, V8=0.06, V9=-0.95, V10=0.22, "
+        "V11=0.35, V12=0.02, V13=0.42, V14=-0.51, V15=-1.22, "
+        "V16=1.03, V17=0.03, V18=-1.08, V19=1.69, V20=0.10, "
+        "V21=-0.08, V22=-0.21, V23=0.19, V24=0.21, V25=-0.97, "
+        "V26=-0.62, V27=0.20, V28=0.15, Amount=175.66")
+messages = [{"role": "user", "content": user_message}]
+
+response = client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=4096,
+    system=(
+        "You are a fraud analyst assistant. When the user provides "
+        "transaction features, use the check_fraud tool to score them. "
+        "Then explain the results in plain English, highlighting which "
+        "features drove the prediction and what they might indicate."
+    ),
+    tools=tools,
+    messages=messages,
+)
+print("Stop Reason: ", response.stop_reason)
+print("Text: ", response.content[0].text)
 
 def chat(user_message: str) -> str:
     """
@@ -135,17 +159,3 @@ def chat(user_message: str) -> str:
         "No response generated.",
     )
     return final_text
-
-# ── Try it out ───────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    result = chat(
-        "Check this transaction for fraud: "
-        "V1=-0.49, V2=-0.56, V3=0.59, V4=-1.66, V5=-0.26, "
-        "V6=0.63, V7=0.27, V8=0.06, V9=-0.95, V10=0.22, "
-        "V11=0.35, V12=0.02, V13=0.42, V14=-0.51, V15=-1.22, "
-        "V16=1.03, V17=0.03, V18=-1.08, V19=1.69, V20=0.10, "
-        "V21=-0.08, V22=-0.21, V23=0.19, V24=0.21, V25=-0.97, "
-        "V26=-0.62, V27=0.20, V28=0.15, Amount=175.66"
-    )
-    print(result)
