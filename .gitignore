@@ -1,5 +1,6 @@
 # data files
 data/
+.DS_Store
 
 # trained models
 models/
